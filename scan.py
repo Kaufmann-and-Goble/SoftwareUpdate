@@ -4,13 +4,15 @@ from termcolor import colored
 with open('targets.txt', 'r') as f:
     myNames = f.readlines()
 myNames = [x.replace('\n', '') for x in myNames]
-targetFile = '/Users/azimdars/Desktop/SoftwareUpdate/targets.txt'
-errorFolder = '/Users/azimdars/Desktop/output/errors/'
-outputFolder = '/Users/azimdars/Desktop/output/outputs/'
-combineFolder = '/Users/azimdars/Desktop/output/combined/'
-hostnameFolder = '/Users/azimdars/Desktop/output/hostnames/'
-version4DFolder = '/Users/azimdars/Desktop/output/4D/'
+targetFile = './targets.txt'
+errorFolder = './errors/'
+outputFolder = './outputs/'
+combineFolder = './combined/'
+hostnameFolder = './hostnames/'
+version4DFolder = './version4D/'
+mountFolder= './mounts/'
 updateList = []
+backupList = []
 version4DList = []
 
 
@@ -34,20 +36,40 @@ def hostname():
 
 def cleanup():
     count = 0
+    print(colored('Cleaning up output...\n', 'cyan'))
     while count < len(myNames):
         machine = str(myNames[count])
-        print("Cleaning up " + machine + "'s output...")
-
+        # print("Cleaning up " + machine + "'s output...")
         os.system('cat ' + hostnameFolder + machine + ' ' + outputFolder + machine + ' ' + errorFolder + machine + ' >> ' + combineFolder + machine + '.txt')
         count += 1
+    print(colored('\n[SUCCESS]\n', 'green'))
 
+
+def version4D():
+    print(colored('Getting 4D Versions...\n', 'cyan'))
+    os.system('pssh -h ' + targetFile + ' -l softwareupdate -o ' + version4DFolder + ' find /Applications -maxdepth 1 -iname 4D*')
     print(colored('\n[SUCCESS]\n', 'green'))
     print('**********************************************\n')
 
 
-def version4D():
-    os.system('pssh -h ' + targetFile + ' -l softwareupdate -o ' + version4DFolder + ' find /Applications -maxdepth 1 -iname 4D*')
+def mountCheck():
+    print(colored('Getting mounted drives...\n', 'cyan'))
+    os.system('pssh -h ' + targetFile + ' -l softwareupdate -o ' + mountFolder + ' ls /Volumes/')
     print(colored('\n[SUCCESS]\n', 'green'))
+
+
+def printMounts(count):
+    while count < len(myNames):
+        with open(mountFolder + str(myNames[count])) as z:
+            hold = z.readlines()
+            hold = [words.replace('\n', '') for words in hold]
+            hold = str(hold).lower()
+        if 'time' in str(hold):
+            return '[YES]'
+        elif 'backup' in str(hold):
+            return '[YES]'
+        else:
+            return '[NO]'
 
 
 def check4updates():
@@ -56,10 +78,12 @@ def check4updates():
         with open(combineFolder + str(myNames[count]) + '.txt') as x:
             storage = x.readlines()
             storage = [worded.replace('\n', '') for worded in storage]
+            x.close()
         if 'No new software available.' in storage:
-            print('-----------------------------\n')
-            print(colored(myNames[count] + '\t = [UP TO DATE]\]', 'green'))
-            print(colored('Hostname: ' + str(storage[0]), 'blue'))
+            print('-----------------------------'
+                  '')
+            print(colored(myNames[count] + '\t\t\t= [UP TO DATE]]', 'green'))
+            print(colored('Hostname\t\t\t\t= ' + str(storage[0]), 'blue'))
             step = 0
             while step < len(myNames):
                 with open(version4DFolder + str(myNames[count])) as x:
@@ -71,13 +95,17 @@ def check4updates():
                     box = [word.replace('V', 'v') for word in box]
                     box.sort()
                     step += 1
-            print('4D Versions installed: ' + str(box) + '\n')
+                    x.close()
+            print('4D Versions installed\t= ' + str(box))
+            print('Time Machine / Backup\t= ' + printMounts(count))
+            if printMounts(count) == '[NO]':
+                backupList.append(myNames[count])
         else:
-            print('-----------------------------\n')
-            print(colored(myNames[count] + '\t= [WARNING: THIS SYSTEM NEEDS UPDATES]', 'red'))
+            print('-----------------------------')
+            print(colored(myNames[count] + '\t\t\t= [WARNING: THIS SYSTEM NEEDS UPDATES]', 'red'))
             updateList.append(str(myNames[count]))
             linecheck = 0
-            print(colored('Hostname: ' + str(storage[0]), 'blue'))
+            print(colored('Hostname\t\t\t\t= ' + str(storage[0]), 'blue'))
             step = 0
             while step < len(myNames):
                 with open(version4DFolder + str(myNames[count])) as x:
@@ -88,28 +116,34 @@ def check4updates():
                     box = [word.replace('4D ', '4D') for word in box]
                     box = [word.replace('V', 'v') for word in box]
                     box.sort()
+                    x.close()
                     step += 1
-            print('4D Versions installed: ' + str(box))
-            print('Updates available: ')
+            print('4D Versions installed\t= ' + str(box))
+            print('Time Machine / Backup\t= ' + printMounts(count))
+            if printMounts(count) == '[NO]':
+                backupList.append(myNames[count])
+            print('\nUpdates available ')
             while linecheck < len(storage):
                 str(storage).replace('\n', '')
                 if '*' in str(storage[linecheck]):
                     line = str(storage[linecheck + 1])
-                    print(colored(line, 'red'))
+                    print(colored('\t\t\t\t\t' + '    =' + line, 'red'))
                 linecheck += 1
             print('\n')
         count += 1
     print('**********************************************\n')
-    print(colored('[DONE]', 'green'))
+    print(colored('[DONE]\n', 'green'))
 
 
 try:
-    # prep()
-    # execute()
-    # hostname()
-    # cleanup()
+    prep()
+    execute()
+    hostname()
+    cleanup()
+    mountCheck()
+    version4D()
     check4updates()
-    # version4D()
-except(IndexError):
+except IndexError:
     print('Issue present, check IP list.')
-print('Machines that need upgrades: \t' + str(updateList))
+print('Machines that need upgrades\t:\t' + str(updateList))
+print('Machines that need backup\t:\t' + str(backupList))
